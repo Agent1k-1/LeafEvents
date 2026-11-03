@@ -1,4 +1,5 @@
 package com.agent1k;
+
 import com.agent1k.action.*;
 import com.agent1k.action.impl.*;
 import com.agent1k.cmd.LeafEventsCmd;
@@ -8,12 +9,15 @@ import com.agent1k.gui.EventGUI;
 import com.agent1k.gui.loader.MenuLoader;
 import com.agent1k.hook.PapiApi;
 import com.agent1k.utils.TextService;
+
 import org.bukkit.Bukkit;
 import org.bukkit.event.*;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
+
 import java.util.*;
+
 public final class LeafEvents extends JavaPlugin implements Listener {
     private Optional<EventLoader> events = Optional.empty();
     private Optional<EventService> service = Optional.empty();
@@ -22,22 +26,44 @@ public final class LeafEvents extends JavaPlugin implements Listener {
     private Optional<MessagesConfig> messages = Optional.empty();
     private Optional<Runnable> unregisterPapi = Optional.empty();
     private final ActionRegistry actions = new ActionRegistry();
-    @Override public void onEnable() {
+
+    @Override
+    public void onEnable() {
         saveDefaultConfig();
         messages = Optional.of(new MessagesConfig(this));
         events = Optional.of(new EventLoader(this));
         service = Optional.of(new EventService(this, events(), this::message));
-        texts = Optional.of(new TextService(events(), service(), messages.orElseThrow(), getConfig().getLong("placeholder-context-ttl-seconds", 300) * 1000L));
-        gui = Optional.of(new EventGUI(this, events(), new MenuLoader(this), messages.orElseThrow(), actions, texts()::format));
+        texts =
+                Optional.of(
+                        new TextService(
+                                events(),
+                                service(),
+                                messages.orElseThrow(),
+                                getConfig().getLong("placeholder-context-ttl-seconds", 300)
+                                        * 1000L));
+        gui =
+                Optional.of(
+                        new EventGUI(
+                                this,
+                                events(),
+                                new MenuLoader(this),
+                                messages.orElseThrow(),
+                                actions,
+                                texts()::format));
         actions.register(ActionType.MESSAGE, new MessageAction(texts()::format));
         actions.register(ActionType.OPEN_INVENTORY, new OpenInventoryAction(gui()));
         actions.register(ActionType.OPEN_MENU, new OpenMenu(gui()));
         actions.register(ActionType.CHANCE, gui()::changeChance);
         actions.register(ActionType.PAGE, gui()::changePage);
-        actions.register(ActionType.CLOSE, (context, argument) -> context.player().ifPresent(player -> player.closeInventory()));
+        actions.register(
+                ActionType.CLOSE,
+                (context, argument) ->
+                        context.player().ifPresent(player -> player.closeInventory()));
         var command = new LeafEventsCmd(this);
-        Objects.requireNonNull(getCommand("leafevents"), "Команда leafevents не зарегистрирована").setExecutor(command);
-        Objects.requireNonNull(getCommand("leafevents"), "Команда leafevents не зарегистрирована").setTabCompleter(command);
+        Objects.requireNonNull(getCommand("leafevents"), "Команда leafevents не зарегистрирована")
+                .setExecutor(command);
+        Objects.requireNonNull(getCommand("leafevents"), "Команда leafevents не зарегистрирована")
+                .setTabCompleter(command);
         Bukkit.getPluginManager().registerEvents(this, this);
         Bukkit.getPluginManager().registerEvents(gui(), this);
         Bukkit.getPluginManager().registerEvents(service(), this);
@@ -49,14 +75,37 @@ public final class LeafEvents extends JavaPlugin implements Listener {
         Bukkit.getScheduler().runTaskTimer(this, () -> texts().expire(), 1200, 1200);
         getLogger().info("Плагин LeafEvents включён");
     }
-    @Override public void onDisable() {
-        gui.ifPresent(EventGUI::shutdown); service.ifPresent(EventService::shutdown); unregisterPapi.ifPresent(Runnable::run);
+
+    @Override
+    public void onDisable() {
+        gui.ifPresent(EventGUI::shutdown);
+        service.ifPresent(EventService::shutdown);
+        unregisterPapi.ifPresent(Runnable::run);
         getLogger().info("Плагин LeafEvents выключен");
     }
-    public void message(@NotNull String key, @NotNull ActionContext context) { messages.ifPresent(config -> actions.execute(context, config.actions(key))); }
-    public @NotNull EventLoader events() { return events.orElseThrow(); }
-    public @NotNull EventService service() { return service.orElseThrow(); }
-    public @NotNull EventGUI gui() { return gui.orElseThrow(); }
-    public @NotNull TextService texts() { return texts.orElseThrow(); }
-    @EventHandler public void quit(PlayerQuitEvent event) { texts().forget(event.getPlayer().getUniqueId()); }
+
+    public void message(@NotNull String key, @NotNull ActionContext context) {
+        messages.ifPresent(config -> actions.execute(context, config.actions(key)));
+    }
+
+    public @NotNull EventLoader events() {
+        return events.orElseThrow();
+    }
+
+    public @NotNull EventService service() {
+        return service.orElseThrow();
+    }
+
+    public @NotNull EventGUI gui() {
+        return gui.orElseThrow();
+    }
+
+    public @NotNull TextService texts() {
+        return texts.orElseThrow();
+    }
+
+    @EventHandler
+    public void quit(PlayerQuitEvent event) {
+        texts().forget(event.getPlayer().getUniqueId());
+    }
 }
