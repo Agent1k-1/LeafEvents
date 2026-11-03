@@ -3,11 +3,14 @@ version: 1.0.0
 main: com.agent1k.LeafEvents
 api-version: '1.21'
 author: Agent1k
-softdepend: [PlaceholderAPI]
+softdepend:
+  - 'PlaceholderAPI'
+
 commands:
   leafevents:
     description: Управление ивентами
     usage: /leafevents
+
 permissions:
   leafevents.admin:
     description: Управление ивентами и редакторами
