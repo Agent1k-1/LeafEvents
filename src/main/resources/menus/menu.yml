@@ -1,0 +1,32 @@
+name: '&fУправление ивентами &8| %page%'
+size: 54
+type: events
+menu-settings:
+  events:
+    name: '%leafevents_event_name%'
+    lore:
+      - ''
+      - '&fЛКМ: редактировать лут'
+      - '&fПКМ: редактировать шансы лута'
+      - '&7ID: %leafevents_event_id%'
+    slot: [10,11,12,13,14,15,16,19,20,21,22,23,24,25,28,29,30,31,32,33,34,37,38,39,40,41,42,43]
+    left_click_action:
+      - '[open-inventory]'
+    right_click_action:
+      - '[open-menu] event-chance'
+items:
+  previous:
+    material: ARROW
+    name: '&fПредыдущая страница'
+    slot: 45
+    left_click_action: ['[page] -1']
+  close:
+    material: BARRIER
+    name: '&cЗакрыть'
+    slot: 49
+    left_click_action: ['[close]']
+  next:
+    material: ARROW
+    name: '&fСледующая страница'
+    slot: 53
+    left_click_action: ['[page] 1']

@@ -1,0 +1,52 @@
+messages:
+  leafevents-help:
+    - ''
+    - '[message] &6Помощь по командам'
+    - ''
+    - '[message] &a/leafevents start &7<id> &fзапустить ивент'
+    - '[message] &a/leafevents stop &7<id> &fостановить ивент'
+    - '[message] &a/leafevents create &7<id> <название> &fсоздать ивент'
+    - '[message] &a/leafevents menu &fменю с ивентами'
+  event-admin-create-event:
+    - '[message] &fИвент %leafevents_event_name% успешно создан. Настройки доступны в папке events.'
+  error-admin-event-create-name:
+    - '[message] &cИдентификатор или название такого ивента уже существует.'
+  event-admin-start:
+    - '[message] &fИвент %leafevents_event_name% запущен.'
+  error-admin-event-start:
+    - '[message] &cИвент уже запущен.'
+  event-admin-stop:
+    - '[message] &fИвент %leafevents_event_name% остановлен.'
+  error-admin-event-stop:
+    - '[message] &cИвент уже остановлен.'
+  event-start:
+    - '[message] &fИвент %leafevents_event_name% запустился!'
+    - ''
+    - '[message] &fЕго координаты: %leafevents_coordination%, мир: %leafevents_world%. Успейте к нему прибежать!'
+  no-permission:
+    - '[message] &cНет прав.'
+  player-only:
+    - '[message] &cЭта команда доступна только игроку.'
+  event-not-found:
+    - '[message] &cИвент не найден.'
+  invalid-id:
+    - '[message] &cID: латинские буквы, цифры, _ и -, до 48 символов. Название: от 1 до 128 символов.'
+  low-online:
+    - '[message] &cДля запуска недостаточно игроков.'
+  no-location:
+    - '[message] &cНе найдено безопасное место. Проверьте мир, координаты и режим спавна. Для спавна около игрока запускать команду должен игрок в разрешённом мире.'
+  editor-busy:
+    - '[message] &cЭтот ивент уже редактирует другой игрок.'
+  menu-not-found:
+    - '[message] &cМеню не найдено или его конфигурация некорректна.'
+  save-error:
+    - '[message] &cНе удалось сохранить изменения. Подробности в консоли.'
+  invalid-action:
+    - '[message] &cНекорректный аргумент действия в меню.'
+chance-lore:
+  - ''
+  - '&fШанс: &a%chance%%'
+  - '&fЛКМ: &c−1% &8| &fПКМ: &a+1%'
+  - '&fShift+ЛКМ: &c−10% &8| &fShift+ПКМ: &a+10%'
+placeholders:
+  event_label: '&fИвент: %leafevents_event_name%'
