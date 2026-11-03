@@ -8,6 +8,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.*;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -35,6 +36,7 @@ public final class EventService implements Listener {
     private final SpawnResolver resolver = new SpawnResolver();
     private final Map<String, RunningEvent> running = new ConcurrentHashMap<>();
     private final Map<String, Long> nextSpawn = new HashMap<>();
+    private final Set<String> announcedUnlocks = new HashSet<>();
     private final BiConsumer<String, ActionContext> messages;
     private final BukkitTask timer;
 
@@ -76,25 +78,27 @@ public final class EventService implements Listener {
                             if (ThreadLocalRandom.current().nextInt(100) < loot.chance())
                                 holder.getInventory().setItem(slot, loot.item());
                         });
+        long now = System.currentTimeMillis();
         var active =
                 new RunningEvent(
                         event,
                         location,
                         previous,
                         holder.getInventory(),
-                        System.currentTimeMillis() + event.stopTime() * 1000L);
+                        new UnlockTimer(now + event.unlockTime() * 1000L),
+                        now + event.stopTime() * 1000L);
         running.put(event.id(), active);
-        Bukkit.getOnlinePlayers()
-                .forEach(
-                        p ->
-                                messages.accept(
-                                        "event-start", new ActionContext(p, Optional.of(event))));
+        if (event.unlockTime() == 0) {
+            announcedUnlocks.add(event.id());
+        }
+        broadcast("event-start", event);
         return Result.STARTED;
     }
 
     public @NotNull Result stop(@NotNull EventDefinition event) {
         var active = running.remove(event.id());
         if (active == null) return Result.ALREADY_STOPPED;
+        announcedUnlocks.remove(event.id());
         new ArrayList<>(active.inventory().getViewers()).forEach(viewer -> viewer.closeInventory());
         active.inventory().clear();
         active.previous().update(true, false);
@@ -120,6 +124,10 @@ public final class EventService implements Listener {
         long now = System.currentTimeMillis();
         new ArrayList<>(running.values())
                 .stream().filter(e -> now >= e.stopAt()).forEach(e -> stop(e.definition()));
+        running.values().stream()
+                .filter(active -> !active.lock().locked(now))
+                .filter(active -> announcedUnlocks.add(active.definition().id()))
+                .forEach(active -> broadcast("event-unlocked", active.definition()));
         loader.all().stream()
                 .filter(e -> !running.containsKey(e.id()))
                 .forEach(
@@ -132,6 +140,14 @@ public final class EventService implements Listener {
                             nextSpawn.put(event.id(), now + event.spawnTime() * 1000L);
                             start(event, Optional.empty());
                         });
+    }
+
+    private void broadcast(String key, EventDefinition event) {
+        Bukkit.getOnlinePlayers()
+                .forEach(
+                        player ->
+                                messages.accept(
+                                        key, new ActionContext(player, Optional.of(event))));
     }
 
     private Optional<RunningEvent> at(Location location) {
@@ -149,8 +165,37 @@ public final class EventService implements Listener {
                 .ifPresent(
                         active -> {
                             event.setCancelled(true);
+                            if (active.lock().locked(System.currentTimeMillis())) {
+                                messages.accept(
+                                        "event-locked",
+                                        new ActionContext(
+                                                event.getPlayer(),
+                                                Optional.of(active.definition())));
+                                return;
+                            }
                             event.getPlayer().openInventory(active.inventory());
                         });
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void openInventory(InventoryOpenEvent event) {
+        if (!(event.getInventory().getHolder() instanceof LootHolder holder)) {
+            return;
+        }
+        var active =
+                running(holder.id())
+                        .filter(value -> value.inventory().equals(event.getInventory()));
+        if (active.isEmpty()) {
+            event.setCancelled(true);
+            return;
+        }
+        var current = active.orElseThrow();
+        if (current.lock().locked(System.currentTimeMillis())) {
+            event.setCancelled(true);
+            messages.accept(
+                    "event-locked",
+                    new ActionContext(event.getPlayer(), Optional.of(current.definition())));
+        }
     }
 
     @EventHandler(ignoreCancelled = true)

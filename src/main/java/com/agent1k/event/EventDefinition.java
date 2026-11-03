@@ -17,6 +17,7 @@ public record EventDefinition(
         double z,
         int spawnTime,
         int stopTime,
+        int unlockTime,
         int online,
         int radius,
         int size,

@@ -1,0 +1,42 @@
+airdrop-settings:
+  material: CHEST
+  random-spawn: true
+  event-world:
+    - world
+  location-spawn:
+    enabled: false
+    coordination:
+      x: 0
+      y: 0
+      z: 0
+  spawn-time: 500
+  stop-time: 300
+  unlock-time: 30
+  online: 1
+  spawn-radius: 1000
+
+inventory-settings:
+  name: '&#55FF55Тестовый аирдроп'
+  size: 27
+  inventory-loot:
+    '10':
+      item:
+        ==: org.bukkit.inventory.ItemStack
+        v: 3953
+        type: DIAMOND
+        amount: 3
+      chance: 100
+    '13':
+      item:
+        ==: org.bukkit.inventory.ItemStack
+        v: 3953
+        type: GOLDEN_APPLE
+        amount: 2
+      chance: 50
+    '16':
+      item:
+        ==: org.bukkit.inventory.ItemStack
+        v: 3953
+        type: IRON_INGOT
+        amount: 16
+      chance: 100

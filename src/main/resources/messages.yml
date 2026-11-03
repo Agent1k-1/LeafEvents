@@ -31,6 +31,12 @@ messages:
     - ''
     - '[message] &fЕго координаты: %leafevents_coordination%, мир: %leafevents_world%. Успейте к нему прибежать!'
 
+  event-locked:
+    - '[message] &cЛут пока заблокирован. До открытия: &f%leafevents_unlock_seconds% сек.'
+
+  event-unlocked:
+    - '[message] &aЛут ивента %leafevents_event_name% теперь доступен!'
+
   no-permission:
     - '[message] &cНет прав.'
 

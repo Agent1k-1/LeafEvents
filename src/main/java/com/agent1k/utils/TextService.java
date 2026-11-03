@@ -94,6 +94,13 @@ public final class TextService {
                 event.flatMap(e -> service.running(e.id()))
                         .map(active -> "запущен")
                         .orElse("остановлен");
+        var active = event.flatMap(e -> service.running(e.id()));
+        long now = System.currentTimeMillis();
+        String unlockSeconds =
+                active.map(value -> String.valueOf(value.lock().remainingSeconds(now))).orElse("0");
+        String unlockState =
+                active.map(value -> value.lock().locked(now) ? "заблокирован" : "доступен")
+                        .orElse("");
         String result = text;
         for (int pass = 0; pass < 8; pass++) {
             String previous = result;
@@ -104,7 +111,9 @@ public final class TextService {
                             .replace("%leafevents_event_id%", id)
                             .replace("%leafevents_coordination%", coordinates)
                             .replace("%leafevents_world%", world)
-                            .replace("%leafevents_state%", state);
+                            .replace("%leafevents_state%", state)
+                            .replace("%leafevents_unlock_seconds%", unlockSeconds)
+                            .replace("%leafevents_unlock_state%", unlockState);
             if (previous.equals(result)) break;
         }
         return result;

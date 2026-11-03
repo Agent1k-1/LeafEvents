@@ -10,4 +10,5 @@ public record RunningEvent(
         @NotNull Location location,
         @NotNull BlockState previous,
         @NotNull Inventory inventory,
+        @NotNull UnlockTimer lock,
         long stopAt) {}

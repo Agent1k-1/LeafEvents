@@ -22,6 +22,7 @@ public final class EventLoader {
         directory = new File(plugin.getDataFolder(), "events");
         if (!directory.isDirectory() && !directory.mkdirs())
             throw new IllegalStateException("Не удалось создать папку ивентов");
+        EventDefaults.install(plugin);
         try (var paths = Files.list(directory.toPath())) {
             paths.filter(p -> p.toString().endsWith(".yml"))
                     .sorted()
@@ -91,6 +92,12 @@ public final class EventLoader {
                                                 }));
         List<String> worlds = yaml.getStringList(base + "event-world");
         if (worlds.isEmpty()) worlds = List.of("world");
+        int stopTime = Math.max(1, yaml.getInt(base + "stop-time", 1500));
+        int unlockTime = yaml.getInt(base + "unlock-time", Math.min(60, stopTime - 1));
+        if (unlockTime < 0 || unlockTime >= stopTime) {
+            throw new IllegalArgumentException(
+                    "Время блокировки должно быть от 0 до stop-time − 1 секунды");
+        }
         var event =
                 new EventDefinition(
                         id,
@@ -103,7 +110,8 @@ public final class EventLoader {
                         yaml.getDouble(base + "location-spawn.coordination.y"),
                         yaml.getDouble(base + "location-spawn.coordination.z"),
                         Math.max(1, yaml.getInt(base + "spawn-time", 500)),
-                        Math.max(1, yaml.getInt(base + "stop-time", 1500)),
+                        stopTime,
+                        unlockTime,
                         Math.max(0, yaml.getInt(base + "online", 1)),
                         Math.clamp(yaml.getInt(base + "spawn-radius", 1000), 1, 1000000),
                         size,
@@ -142,6 +150,7 @@ public final class EventLoader {
                         0,
                         500,
                         1500,
+                        60,
                         1,
                         1000,
                         54,
@@ -163,6 +172,7 @@ public final class EventLoader {
         yaml.set(base + "location-spawn.coordination.z", event.z());
         yaml.set(base + "spawn-time", event.spawnTime());
         yaml.set(base + "stop-time", event.stopTime());
+        yaml.set(base + "unlock-time", event.unlockTime());
         yaml.set(base + "online", event.online());
         yaml.set(base + "spawn-radius", event.radius());
         yaml.set("inventory-settings.name", event.name());
