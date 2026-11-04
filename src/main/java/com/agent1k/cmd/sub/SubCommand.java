@@ -5,7 +5,6 @@ import com.agent1k.action.ActionContext;
 import com.agent1k.event.EventDefinition;
 
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -42,8 +41,6 @@ public abstract class SubCommand {
     protected @NotNull Optional<EventDefinition> event(CommandSender sender, String id) {
         var event = plugin.events().find(id);
         if (event.isEmpty()) message(sender, "event-not-found", Optional.empty());
-        if (sender instanceof Player player)
-            event.ifPresent(e -> plugin.papi().remember(player, e));
         return event;
     }
 

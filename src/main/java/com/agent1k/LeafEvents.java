@@ -10,35 +10,35 @@ import com.agent1k.gui.loader.MenuLoader;
 import com.agent1k.hook.PapiApi;
 
 import org.bukkit.Bukkit;
-import org.bukkit.event.*;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.function.BiFunction;
 
-public final class LeafEvents extends JavaPlugin implements Listener {
+public final class LeafEvents extends JavaPlugin {
     private Optional<EventLoader> events = Optional.empty();
     private Optional<EventService> service = Optional.empty();
     private Optional<EventGUI> gui = Optional.empty();
-    private Optional<PapiApi> papi = Optional.empty();
+    private BiFunction<ActionContext, String, String> formatter = (context, text) -> text;
+    private Optional<Runnable> unregisterPapi = Optional.empty();
     private Optional<MessagesConfig> messages = Optional.empty();
     private final ActionRegistry actions = new ActionRegistry();
 
     @Override
     public void onEnable() {
-        saveDefaultConfig();
         messages = Optional.of(new MessagesConfig(this));
         events = Optional.of(new EventLoader(this));
         service = Optional.of(new EventService(this, events(), this::message));
-        papi =
-                Optional.of(
-                        new PapiApi(
-                                events(),
-                                service(),
-                                messages.orElseThrow(),
-                                getConfig().getLong("placeholder-context-ttl-seconds", 300)
-                                        * 1000L));
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            var expansion = new PapiApi(this, messages.orElseThrow().placeholders());
+            if (expansion.register()) {
+                formatter = expansion::format;
+                unregisterPapi = Optional.of(() -> expansion.unregister());
+            } else {
+                getLogger().warning("Не удалось зарегистрировать плейсхолдеры LeafEvents");
+            }
+        }
         gui =
                 Optional.of(
                         new EventGUI(
@@ -47,8 +47,8 @@ public final class LeafEvents extends JavaPlugin implements Listener {
                                 new MenuLoader(this),
                                 messages.orElseThrow(),
                                 actions,
-                                papi()::format));
-        actions.register(ActionType.MESSAGE, new MessageAction(papi()::format));
+                                this::format));
+        actions.register(ActionType.MESSAGE, new MessageAction(this::format));
         actions.register(ActionType.OPEN_INVENTORY, new OpenInventoryAction(gui()));
         actions.register(ActionType.OPEN_MENU, new OpenMenu(gui()));
         actions.register(ActionType.CHANCE, gui()::changeChance);
@@ -62,13 +62,8 @@ public final class LeafEvents extends JavaPlugin implements Listener {
                 .setExecutor(command);
         Objects.requireNonNull(getCommand("leafevents"), "Команда leafevents не зарегистрирована")
                 .setTabCompleter(command);
-        Bukkit.getPluginManager().registerEvents(this, this);
         Bukkit.getPluginManager().registerEvents(gui(), this);
         Bukkit.getPluginManager().registerEvents(service(), this);
-        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI") && !papi().register()) {
-            getLogger().warning("Не удалось зарегистрировать плейсхолдеры LeafEvents");
-        }
-        Bukkit.getScheduler().runTaskTimer(this, () -> papi().expire(), 1200, 1200);
         getLogger().info("Плагин LeafEvents включён");
     }
 
@@ -76,7 +71,9 @@ public final class LeafEvents extends JavaPlugin implements Listener {
     public void onDisable() {
         gui.ifPresent(EventGUI::shutdown);
         service.ifPresent(EventService::shutdown);
-        papi.ifPresent(PapiApi::close);
+        unregisterPapi.ifPresent(Runnable::run);
+        unregisterPapi = Optional.empty();
+        formatter = (context, text) -> text;
         getLogger().info("Плагин LeafEvents выключен");
     }
 
@@ -96,12 +93,7 @@ public final class LeafEvents extends JavaPlugin implements Listener {
         return gui.orElseThrow();
     }
 
-    public @NotNull PapiApi papi() {
-        return papi.orElseThrow();
-    }
-
-    @EventHandler
-    public void quit(PlayerQuitEvent event) {
-        papi().forget(event.getPlayer().getUniqueId());
+    public @NotNull String format(@NotNull ActionContext context, @NotNull String text) {
+        return formatter.apply(context, text);
     }
 }

@@ -274,20 +274,6 @@ public final class EventGUI implements Listener {
                                                                                             session.selectedLoot =
                                                                                                     entry
                                                                                                             .lootSlot();
-                                                                                            entry.event()
-                                                                                                    .ifPresent(
-                                                                                                            definition -> {
-                                                                                                                if (plugin
-                                                                                                                        instanceof
-                                                                                                                        com
-                                                                                                                                                .agent1k
-                                                                                                                                                .LeafEvents
-                                                                                                                                        leaf)
-                                                                                                                    leaf.papi()
-                                                                                                                            .remember(
-                                                                                                                                    player,
-                                                                                                                                    definition);
-                                                                                                            });
                                                                                             actions
                                                                                                     .execute(
                                                                                                             new ActionContext(

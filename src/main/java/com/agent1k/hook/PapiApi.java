@@ -1,61 +1,59 @@
 package com.agent1k.hook;
 
+import com.agent1k.LeafEvents;
 import com.agent1k.action.ActionContext;
-import com.agent1k.config.MessagesConfig;
 import com.agent1k.event.EventDefinition;
-import com.agent1k.event.EventLoader;
-import com.agent1k.event.EventService;
 import com.agent1k.event.RunningEvent;
 import com.agent1k.utils.HexUtils;
 
 import me.clip.placeholderapi.PlaceholderAPI;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 
-import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayDeque;
+import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public final class PapiApi implements AutoCloseable {
-    private static final Pattern TOKEN = Pattern.compile("%leafevents_([a-zA-Z0-9_]+)%");
-    private static final int MAX_EXPANSION_DEPTH = 8;
-
-    private record PlayerContext(String id, long expiresAt) {}
+public final class PapiApi extends PlaceholderExpansion {
+    private static final Pattern TOKEN = Pattern.compile("%leafevents_([a-zA-Z0-9_-]+)%");
 
     private record Values(
             Optional<EventDefinition> event, Optional<RunningEvent> running, long now) {}
 
-    private final EventLoader events;
-    private final EventService service;
-    private final Map<String, Function<Values, String>> placeholders;
-    private final Map<UUID, PlayerContext> contexts = new ConcurrentHashMap<>();
-    private final long ttlMillis;
-    private Optional<Runnable> unregister = Optional.empty();
+    private record Request(String key, Optional<EventDefinition> event) {}
 
-    public PapiApi(
-            @NotNull EventLoader events,
-            @NotNull EventService service,
-            @NotNull MessagesConfig messages,
-            long ttlMillis) {
-        this.events = events;
-        this.service = service;
-        this.ttlMillis = Math.max(1000, ttlMillis);
-        placeholders = createRegistry(messages);
+    private final LeafEvents plugin;
+    private final Map<String, Function<Values, String>> placeholders;
+    private final Map<String, String> templates;
+    private final Set<String> keys;
+    private final ThreadLocal<Deque<Optional<EventDefinition>>> scopes =
+            ThreadLocal.withInitial(ArrayDeque::new);
+    private final ThreadLocal<Set<String>> resolving = ThreadLocal.withInitial(HashSet::new);
+
+    public PapiApi(@NotNull LeafEvents plugin, @NotNull Map<String, String> templates) {
+        super();
+        this.plugin = plugin;
+        this.templates = Map.copyOf(templates);
+        placeholders = createRegistry();
+        Set<String> names = new HashSet<>(templates.keySet());
+        names.addAll(placeholders.keySet());
+        keys = Set.copyOf(names);
     }
 
-    private Map<String, Function<Values, String>> createRegistry(MessagesConfig messages) {
+    private Map<String, Function<Values, String>> createRegistry() {
         Map<String, Function<Values, String>> registry = new HashMap<>();
-        messages.placeholders().forEach((key, template) -> registry.put(key, values -> template));
-
         registry.put("event_name", values -> values.event().map(EventDefinition::name).orElse(""));
         registry.put("event_id", values -> values.event().map(EventDefinition::id).orElse(""));
         registry.put("coordination", values -> values.running().map(this::coordinates).orElse(""));
@@ -90,7 +88,6 @@ public final class PapiApi implements AutoCloseable {
                                                         ? "заблокирован"
                                                         : "доступен")
                                 .orElse(""));
-
         return Map.copyOf(registry);
     }
 
@@ -99,126 +96,115 @@ public final class PapiApi implements AutoCloseable {
         return location.getBlockX() + " " + location.getBlockY() + " " + location.getBlockZ();
     }
 
-    public boolean register() {
-        if (unregister.isPresent()) {
-            return true;
-        }
-        var expansion = new Expansion(this);
-        if (!expansion.register()) {
-            return false;
-        }
-        unregister = Optional.of(() -> expansion.unregister());
-        return true;
-    }
-
-    public void remember(@NotNull Player player, @NotNull EventDefinition event) {
-        contexts.put(
-                player.getUniqueId(),
-                new PlayerContext(event.id(), System.currentTimeMillis() + ttlMillis));
-    }
-
-    public void forget(@NotNull UUID player) {
-        contexts.remove(player);
-    }
-
-    public void expire() {
-        contexts.values().removeIf(context -> context.expiresAt() <= System.currentTimeMillis());
-    }
-
-    private Optional<EventDefinition> context(UUID player) {
-        return Optional.ofNullable(contexts.get(player))
-                .filter(value -> value.expiresAt() > System.currentTimeMillis())
-                .flatMap(value -> events.find(value.id()));
-    }
-
-    public @NotNull String format(@NotNull ActionContext context, @NotNull String text) {
-        String result = expand(context.event(), text);
-        if (unregister.isEmpty()) {
-            return result;
-        }
-        return context.player()
-                .map(player -> Expansion.formatExternal(player, result))
-                .orElse(result);
-    }
-
-    private String resolve(Optional<EventDefinition> event, String key) {
-        if (!placeholders.containsKey(key)) {
-            return "";
-        }
-        return HexUtils.color(expand(event, "%leafevents_" + key + "%"));
-    }
-
-    private String expand(Optional<EventDefinition> event, String text) {
-        var values =
-                new Values(
-                        event,
-                        event.flatMap(value -> service.running(value.id())),
-                        System.currentTimeMillis());
-        String result = text;
-        for (int depth = 0; depth < MAX_EXPANSION_DEPTH; depth++) {
-            String previous = result;
-            result =
-                    TOKEN.matcher(result)
-                            .replaceAll(
-                                    match -> {
-                                        String replacement =
-                                                Optional.ofNullable(
-                                                                placeholders.get(match.group(1)))
-                                                        .map(resolver -> resolver.apply(values))
-                                                        .orElse(match.group());
-                                        return Matcher.quoteReplacement(replacement);
-                                    });
-            if (result.equals(previous)) {
-                break;
-            }
-        }
-        return result;
+    @Override
+    public @NotNull String getIdentifier() {
+        return "leafevents";
     }
 
     @Override
-    public void close() {
-        unregister.ifPresent(Runnable::run);
-        unregister = Optional.empty();
-        contexts.clear();
+    public @NotNull String getAuthor() {
+        return "Agent1k";
     }
 
-    private static final class Expansion extends PlaceholderExpansion {
-        private final PapiApi api;
+    @Override
+    public @NotNull String getVersion() {
+        return plugin.getDescription().getVersion();
+    }
 
-        private Expansion(PapiApi api) {
-            super();
-            this.api = api;
+    @Override
+    public boolean persist() {
+        return true;
+    }
+
+    @Override
+    public @NotNull String onPlaceholderRequest(Player player, @NotNull String params) {
+        return resolve(Optional.ofNullable(player), params);
+    }
+
+    public @NotNull String format(@NotNull ActionContext context, @NotNull String text) {
+        return withEvent(context.event(), () -> parse(context.player(), text));
+    }
+
+    private String parse(Optional<Player> player, String text) {
+        return player.map(value -> PlaceholderAPI.setPlaceholders(value, text))
+                .orElseGet(
+                        () ->
+                                TOKEN.matcher(text)
+                                        .replaceAll(
+                                                match ->
+                                                        Matcher.quoteReplacement(
+                                                                resolve(
+                                                                        Optional.empty(),
+                                                                        match.group(1)))));
+    }
+
+    private String resolve(Optional<Player> player, String params) {
+        var request = request(params);
+        if (request.isEmpty()) {
+            return "";
+        }
+        var selected = request.orElseThrow();
+        var values =
+                new Values(
+                        selected.event(),
+                        selected.event().flatMap(event -> plugin.service().running(event.id())),
+                        System.currentTimeMillis());
+        var resolver = Optional.ofNullable(placeholders.get(selected.key()));
+        if (resolver.isPresent()) {
+            return HexUtils.color(resolver.orElseThrow().apply(values));
         }
 
-        private static String formatExternal(Player player, String text) {
-            return PlaceholderAPI.setPlaceholders(player, text);
+        String guard = selected.key() + ":" + selected.event().map(EventDefinition::id).orElse("");
+        Set<String> active = resolving.get();
+        if (active.size() >= 8 || !active.add(guard)) {
+            return "";
         }
-
-        @Override
-        public @NotNull String getIdentifier() {
-            return "leafevents";
+        try {
+            String template = templates.getOrDefault(selected.key(), "");
+            return HexUtils.color(withEvent(selected.event(), () -> parse(player, template)));
+        } finally {
+            active.remove(guard);
+            if (active.isEmpty()) {
+                resolving.remove();
+            }
         }
+    }
 
-        @Override
-        public @NotNull String getAuthor() {
-            return "Agent1k";
+    private Optional<Request> request(String params) {
+        if (keys.contains(params)) {
+            return Optional.of(new Request(params, currentEvent()));
         }
+        return keys.stream()
+                .filter(key -> params.startsWith(key + "_"))
+                .max(Comparator.comparingInt(String::length))
+                .map(
+                        key ->
+                                new Request(
+                                        key,
+                                        plugin.events().find(params.substring(key.length() + 1))));
+    }
 
-        @Override
-        public @NotNull String getVersion() {
-            return "1.0.0";
+    private Optional<EventDefinition> currentEvent() {
+        Deque<Optional<EventDefinition>> stack = scopes.get();
+        if (!stack.isEmpty()) {
+            return stack.getFirst();
         }
+        scopes.remove();
+        return plugin.events().all().stream()
+                .filter(event -> plugin.service().running(event.id()).isPresent())
+                .min(Comparator.comparing(EventDefinition::id));
+    }
 
-        @Override
-        public boolean persist() {
-            return true;
-        }
-
-        @Override
-        public @NotNull String onRequest(OfflinePlayer player, @NotNull String params) {
-            return api.resolve(
-                    Optional.ofNullable(player).flatMap(value -> api.context(value.getUniqueId())),
-                    params);
+    private String withEvent(Optional<EventDefinition> event, Supplier<String> operation) {
+        Deque<Optional<EventDefinition>> stack = scopes.get();
+        stack.push(event);
+        try {
+            return operation.get();
+        } finally {
+            stack.pop();
+            if (stack.isEmpty()) {
+                scopes.remove();
+            }
         }
     }
 }
