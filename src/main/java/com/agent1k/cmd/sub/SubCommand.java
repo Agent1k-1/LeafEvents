@@ -43,7 +43,7 @@ public abstract class SubCommand {
         var event = plugin.events().find(id);
         if (event.isEmpty()) message(sender, "event-not-found", Optional.empty());
         if (sender instanceof Player player)
-            event.ifPresent(e -> plugin.texts().remember(player, e));
+            event.ifPresent(e -> plugin.papi().remember(player, e));
         return event;
     }
 

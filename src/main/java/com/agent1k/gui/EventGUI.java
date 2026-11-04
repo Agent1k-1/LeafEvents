@@ -283,7 +283,7 @@ public final class EventGUI implements Listener {
                                                                                                                                                 .agent1k
                                                                                                                                                 .LeafEvents
                                                                                                                                         leaf)
-                                                                                                                    leaf.texts()
+                                                                                                                    leaf.papi()
                                                                                                                             .remember(
                                                                                                                                     player,
                                                                                                                                     definition);

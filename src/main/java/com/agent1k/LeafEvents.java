@@ -8,7 +8,6 @@ import com.agent1k.event.*;
 import com.agent1k.gui.EventGUI;
 import com.agent1k.gui.loader.MenuLoader;
 import com.agent1k.hook.PapiApi;
-import com.agent1k.utils.TextService;
 
 import org.bukkit.Bukkit;
 import org.bukkit.event.*;
@@ -22,9 +21,8 @@ public final class LeafEvents extends JavaPlugin implements Listener {
     private Optional<EventLoader> events = Optional.empty();
     private Optional<EventService> service = Optional.empty();
     private Optional<EventGUI> gui = Optional.empty();
-    private Optional<TextService> texts = Optional.empty();
+    private Optional<PapiApi> papi = Optional.empty();
     private Optional<MessagesConfig> messages = Optional.empty();
-    private Optional<Runnable> unregisterPapi = Optional.empty();
     private final ActionRegistry actions = new ActionRegistry();
 
     @Override
@@ -33,9 +31,9 @@ public final class LeafEvents extends JavaPlugin implements Listener {
         messages = Optional.of(new MessagesConfig(this));
         events = Optional.of(new EventLoader(this));
         service = Optional.of(new EventService(this, events(), this::message));
-        texts =
+        papi =
                 Optional.of(
-                        new TextService(
+                        new PapiApi(
                                 events(),
                                 service(),
                                 messages.orElseThrow(),
@@ -49,8 +47,8 @@ public final class LeafEvents extends JavaPlugin implements Listener {
                                 new MenuLoader(this),
                                 messages.orElseThrow(),
                                 actions,
-                                texts()::format));
-        actions.register(ActionType.MESSAGE, new MessageAction(texts()::format));
+                                papi()::format));
+        actions.register(ActionType.MESSAGE, new MessageAction(papi()::format));
         actions.register(ActionType.OPEN_INVENTORY, new OpenInventoryAction(gui()));
         actions.register(ActionType.OPEN_MENU, new OpenMenu(gui()));
         actions.register(ActionType.CHANCE, gui()::changeChance);
@@ -67,12 +65,10 @@ public final class LeafEvents extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(this, this);
         Bukkit.getPluginManager().registerEvents(gui(), this);
         Bukkit.getPluginManager().registerEvents(service(), this);
-        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-            var expansion = new PapiApi(texts());
-            if (expansion.register()) unregisterPapi = Optional.of(expansion::unregister);
-            else getLogger().warning("Не удалось зарегистрировать плейсхолдеры LeafEvents");
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI") && !papi().register()) {
+            getLogger().warning("Не удалось зарегистрировать плейсхолдеры LeafEvents");
         }
-        Bukkit.getScheduler().runTaskTimer(this, () -> texts().expire(), 1200, 1200);
+        Bukkit.getScheduler().runTaskTimer(this, () -> papi().expire(), 1200, 1200);
         getLogger().info("Плагин LeafEvents включён");
     }
 
@@ -80,7 +76,7 @@ public final class LeafEvents extends JavaPlugin implements Listener {
     public void onDisable() {
         gui.ifPresent(EventGUI::shutdown);
         service.ifPresent(EventService::shutdown);
-        unregisterPapi.ifPresent(Runnable::run);
+        papi.ifPresent(PapiApi::close);
         getLogger().info("Плагин LeafEvents выключен");
     }
 
@@ -100,12 +96,12 @@ public final class LeafEvents extends JavaPlugin implements Listener {
         return gui.orElseThrow();
     }
 
-    public @NotNull TextService texts() {
-        return texts.orElseThrow();
+    public @NotNull PapiApi papi() {
+        return papi.orElseThrow();
     }
 
     @EventHandler
     public void quit(PlayerQuitEvent event) {
-        texts().forget(event.getPlayer().getUniqueId());
+        papi().forget(event.getPlayer().getUniqueId());
     }
 }
